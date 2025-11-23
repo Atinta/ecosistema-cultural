@@ -4,16 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ecosistema Cultural de Chile</title>
+  
   <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 
   <style>
+    /* --- ESTILO DARK MODE --- */
     body { margin: 0; background-color: #121212; font-family: 'Inter', sans-serif; overflow: hidden; }
-    #ecosistema-vis { width: 100vw; height: 100vh; background: radial-gradient(circle at center, #1e1e1e 0%, #000000 100%); }
     
+    #ecosistema-vis { 
+      width: 100vw; height: 100vh; 
+      background: radial-gradient(circle at center, #1e1e1e 0%, #000000 100%);
+    }
+
     /* UI FLOTANTE */
-    .ui-overlay { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+    .ui-overlay { 
+      position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; 
+    }
     .card {
       background: rgba(15,15,15,0.9); padding: 20px; border-radius: 12px; 
       border: 1px solid #333; backdrop-filter: blur(10px); pointer-events: auto;
@@ -28,10 +36,11 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
     .line { width: 15px; height: 2px; margin-right: 8px; }
 
-    /* LOADING */
+    /* PANTALLA DE CARGA */
     .loading { 
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-      color: #E9C46A; font-weight: bold; letter-spacing: 1px; font-size: 14px; text-align: center;
+      color: #E9C46A; font-weight: bold; letter-spacing: 1px; font-size: 14px;
+      text-shadow: 0 0 10px rgba(233, 196, 106, 0.3); text-align: center;
     }
     
     /* BUSCADOR */
@@ -48,7 +57,7 @@
 <div class="ui-overlay">
   <div class="card">
     <h1>Ecosistema Cultural</h1>
-    <p>Live Database</p>
+    <p>Conectado a AppSheet</p>
     
     <div class="legend-grid">
       <div class="legend-item"><div class="dot" style="background:#F2CC8F"></div>Estado</div>
@@ -71,23 +80,24 @@
   </div>
 </div>
 
-<div id="loading-msg" class="loading">CONECTANDO CON GITHUB...</div>
+<div id="loading-msg" class="loading">CARGANDO DATOS...</div>
 <div id="ecosistema-vis"></div>
 
 <script type="text/javascript">
 
-  // TUS LINKS
+  // =========================================================
+  // 1. ENLACES A TUS GOOGLE SHEETS (CSV Publicado)
+  // =========================================================
   const URL_NODOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=0&single=true&output=csv";
   const URL_RELACIONES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=1078940281&single=true&output=csv";
-  
-  // En GitHub Pages, a veces NO necesitamos proxy si Google coopera, 
-  // pero corsproxy.io es el más seguro para evitar fallos.
-  const PROXY = "https://corsproxy.io/?";
 
   var nodes = new vis.DataSet([]);
   var edges = new vis.DataSet([]);
   var network = null;
 
+  // =========================================================
+  // 2. CONFIGURACIÓN VISUAL
+  // =========================================================
   const colors = {
     fondo_publico: '#81B29A', persona: '#E9C46A', fundacion: '#A2D2FF',
     corporacion: '#A2D2FF', espacio_comercial: '#E07A5F', espacio_privado: '#E07A5F',
@@ -101,79 +111,140 @@
     return `https://ui-avatars.com/api/?name=${clean}&background=${hex}&color=000&size=128&bold=true&font-size=0.4`;
   }
 
+  // =========================================================
+  // 3. CARGA DE DATOS
+  // =========================================================
   function cargarDatos() {
     
-    // URL encoding para evitar errores con caracteres extraños
-    const safeNodos = PROXY + encodeURIComponent(URL_NODOS);
-    const safeRel = PROXY + encodeURIComponent(URL_RELACIONES);
-
     Promise.all([
-      fetch(safeNodos).then(res => { if(!res.ok) throw new Error("Nodos"); return res.text(); }),
-      fetch(safeRel).then(res => { if(!res.ok) throw new Error("Relaciones"); return res.text(); })
+      fetch(URL_NODOS).then(res => { if(!res.ok) throw new Error("Error Nodos"); return res.text(); }),
+      fetch(URL_RELACIONES).then(res => { if(!res.ok) throw new Error("Error Relaciones"); return res.text(); })
     ]).then(([csvNodos, csvRel]) => {
 
+      // --- A. NODOS ---
       var dataNodos = Papa.parse(csvNodos, {header: true, skipEmptyLines: true}).data;
-      var cleanNodes = dataNodos.filter(r => r.id).map(n => {
-          let groupColor = colors[n.group] || '#ccc';
-          let shape = 'dot';
-          let image = undefined;
-          if (n.group === 'persona') {
-            shape = 'circularImage';
-            image = (n.image && n.image.includes('http')) ? n.image : getAvatar(n.label, groupColor);
-          } else if (['fundacion','corporacion','estado','espacio_comercial','fondo_publico'].includes(n.group)) {
-            shape = 'box';
-          }
-          return {
-            id: n.id, label: n.label, group: n.group, shape: shape, image: image,
-            value: n.val_size ? parseInt(n.val_size) : 25,
-            color: { background: groupColor, border: groupColor },
-            title: n.label
-          };
-      });
-      nodes.clear(); nodes.add(cleanNodes);
+      
+      var cleanNodes = dataNodos
+        .filter(r => r.id && r.id.trim() !== "") 
+        .map(n => {
+            let groupColor = colors[n.group] || '#ccc';
+            let shape = 'dot';
+            let image = undefined;
 
+            if (n.group === 'persona') {
+              shape = 'circularImage';
+              // Si hay foto en el sheet (URL), úsala. Si no, genera avatar.
+              image = (n.image && n.image.startsWith('http')) ? n.image : getAvatar(n.label, groupColor);
+            } else if (['fundacion','corporacion','estado','espacio_comercial','fondo_publico'].includes(n.group)) {
+              shape = 'box';
+            }
+
+            return {
+              id: n.id,
+              label: n.label,
+              group: n.group,
+              shape: shape,
+              image: image,
+              value: n.val_size ? parseInt(n.val_size) : 25, 
+              color: { background: groupColor, border: groupColor },
+              title: `<b>${n.label}</b><br>${n.group}` 
+            };
+        });
+
+      nodes.clear();
+      nodes.add(cleanNodes);
+
+      // --- B. RELACIONES ---
       var dataRel = Papa.parse(csvRel, {header: true, skipEmptyLines: true}).data;
-      var cleanEdges = dataRel.filter(r => r.from && r.to).map(e => {
-          let color = 'rgba(255,255,255,0.15)'; let dashes = false; let arrows = 'to';
-          if (e.relation_type === 'financiamiento') { color = '#4CAF50'; dashes = [5,5]; }
-          else if (e.relation_type === 'comercial') { color = '#9C27B0'; }
-          else if (e.relation_type === 'premio') { color = '#DBF4A7'; }
-          else if (e.relation_type === 'pareja') { color = '#fff'; arrows = false; }
-          return {
-            from: e.from, to: e.to, label: e.label,
-            color: { color: color, highlight: '#fff' },
-            dashes: dashes, arrows: arrows
-          };
-      });
-      edges.clear(); edges.add(cleanEdges);
+      
+      var cleanEdges = dataRel
+        .filter(r => r.from && r.to) 
+        .map(e => {
+            let color = 'rgba(255,255,255,0.15)'; 
+            let dashes = false;
+            let arrows = 'to';
+
+            // Estilos por tipo
+            if (e.relation_type === 'financiamiento') { color = '#4CAF50'; dashes = [5,5]; }
+            else if (e.relation_type === 'comercial') { color = '#9C27B0'; }
+            else if (e.relation_type === 'premio') { color = '#DBF4A7'; }
+            else if (e.relation_type === 'pareja') { color = '#fff'; arrows = false; }
+            else if (e.relation_type === 'ex_pareja') { color = '#fff'; arrows = false; dashes = [2,2]; }
+
+            return {
+              from: e.from,
+              to: e.to,
+              label: e.label,
+              color: { color: color, highlight: '#fff' },
+              dashes: dashes,
+              arrows: arrows,
+              font: { align: 'middle', size: 9, color: '#888', strokeWidth: 0, background: 'transparent' }
+            };
+        });
+
+      edges.clear();
+      edges.add(cleanEdges);
 
       if(!network) dibujarMapa();
       document.getElementById('loading-msg').style.display = 'none';
 
     }).catch(err => {
-      document.getElementById('loading-msg').innerHTML = "ERROR AL CARGAR DATOS<br>" + err.message;
+      console.error(err);
+      document.getElementById('loading-msg').innerHTML = "⚠️ ERROR DE CARGA<br>Verifica la consola o los enlaces CSV.";
       document.getElementById('loading-msg').style.color = "red";
     });
   }
 
+  // =========================================================
+  // 4. RENDERIZADO (Vis.js)
+  // =========================================================
   function dibujarMapa() {
     var container = document.getElementById('ecosistema-vis');
     var data = { nodes: nodes, edges: edges };
+    
     var options = {
-      nodes: { font: { color: '#fff', face: 'Inter', strokeWidth:0 }, borderWidth: 2, shadow: true },
+      nodes: {
+        font: { color: '#fff', face: 'Inter', size: 14, strokeWidth: 0, vadjust: -35 },
+        borderWidth: 2,
+        shadow: { enabled: true, color: 'rgba(0,0,0,0.5)' }
+      },
       edges: { smooth: { type: 'continuous' } },
-      physics: { forceAtlas2Based: { gravitationalConstant: -100, springLength: 120 }, solver: 'forceAtlas2Based' },
+      physics: {
+        forceAtlas2Based: {
+          gravitationalConstant: -100, centralGravity: 0.01,
+          springLength: 120, springConstant: 0.08
+        },
+        solver: 'forceAtlas2Based', stabilization: { iterations: 150 }
+      },
       interaction: { hover: true }
     };
+
     network = new vis.Network(container, data, options);
-    window.searchNode = function() {
-        var term = document.getElementById('searchNode').value.toLowerCase();
-        if(!term) { network.fit(); return; }
-        var found = nodes.get().find(n => n.label.toLowerCase().includes(term));
-        if(found) { network.focus(found.id, { scale: 1.5, animation: true }); network.selectNodes([found.id]); }
-    };
+    
+    // Doble clic = Zoom
+    network.on("doubleClick", function (params) {
+        if (params.nodes.length > 0) {
+            network.focus(params.nodes[0], { scale: 1.5, animation: true });
+        }
+    });
   }
+
+  // Buscador
+  window.searchNode = function() {
+    var term = document.getElementById('searchNode').value.toLowerCase();
+    if(term === "") { network.fit(); return; } 
+    
+    var allNodes = nodes.get();
+    var found = allNodes.find(n => n.label.toLowerCase().includes(term));
+    
+    if(found) {
+      network.focus(found.id, { scale: 1.5, animation: true });
+      network.selectNodes([found.id]);
+    }
+  }
+
   cargarDatos();
+
 </script>
 </body>
 </html>
