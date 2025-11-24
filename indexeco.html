@@ -3,326 +3,170 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Consola Ecosistema Cultural</title>
+  <title>Ecosistema Cultural (Conectado)</title>
   
   <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    :root { --bg: #0f0f0f; --panel: rgba(30,30,30,0.95); --accent: #E9C46A; --border: #333; }
-    body { margin: 0; background: var(--bg); font-family: 'Inter', sans-serif; overflow: hidden; color: #eee; }
-    
-    #ecosistema-vis { width: 100vw; height: 100vh; background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000 100%); }
+    /* --- UI SÓLIDA (Siempre visible) --- */
+    body { margin: 0; background: #121212; font-family: 'Inter', sans-serif; overflow: hidden; }
+    #ecosistema-vis { width: 100vw; height: 100vh; background: radial-gradient(circle, #1e1e1e 0%, #000 100%); }
 
-    /* --- SIDEBAR IZQUIERDA (FILTROS) --- */
+    /* BARRA LATERAL (Estilo Bacon) */
     .sidebar {
-      position: absolute; top: 0; left: 0; width: 260px; height: 100vh;
-      background: var(--panel); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
-      z-index: 20; backdrop-filter: blur(10px);
-      transition: transform 0.3s ease;
+      position: absolute; top: 0; left: 0; width: 250px; height: 100%;
+      background: rgba(20,20,20,0.95); border-right: 1px solid #333;
+      padding: 20px; box-sizing: border-box; z-index: 100;
+      transform: translateX(0); transition: transform 0.3s ease;
+      display: flex; flex-direction: column;
     }
-    .sidebar.closed { transform: translateX(-260px); }
+    .sidebar.closed { transform: translateX(-250px); }
     
-    .toggle-sidebar {
-      position: absolute; top: 20px; left: 270px; z-index: 21;
-      background: var(--panel); border: 1px solid var(--border); color: white;
-      padding: 10px; border-radius: 8px; cursor: pointer;
-      transition: left 0.3s ease;
-    }
-    .sidebar.closed + .toggle-sidebar { left: 20px; }
-
-    h2 { margin: 0 0 20px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+    h2 { color: #E9C46A; margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
     
     /* Filtros */
-    .filter-group { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; }
-    .filter-item { display: flex; align-items: center; font-size: 12px; cursor: pointer; }
-    .filter-item input { margin-right: 10px; accent-color: var(--accent); }
-    .dot-legend { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; display: inline-block; }
-
-    /* --- TOOLBAR SUPERIOR (EDICIÓN) --- */
-    .toolbar {
-      position: absolute; top: 20px; right: 20px; z-index: 20;
-      display: flex; gap: 10px;
+    #filters-container { flex: 1; overflow-y: auto; }
+    .filter-row { display: flex; align-items: center; margin-bottom: 12px; color: #ccc; font-size: 12px; cursor: pointer; }
+    .filter-row:hover { color: #fff; }
+    .checkbox { width: 16px; height: 16px; border: 1px solid #555; margin-right: 10px; display: flex; align-items: center; justify-content: center; border-radius: 3px;}
+    .checkbox.checked { background: #E9C46A; border-color: #E9C46A; color: black; }
+    
+    /* BARRA SUPERIOR (Herramientas) */
+    .top-bar {
+      position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; gap: 10px;
     }
     .btn {
-      background: var(--panel); border: 1px solid var(--border); color: white;
-      padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 12px;
-      display: flex; align-items: center; gap: 8px; transition: all 0.2s;
+      background: #222; color: white; border: 1px solid #444; padding: 10px 16px;
+      border-radius: 8px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 8px;
+      transition: all 0.2s;
     }
-    .btn:hover { border-color: var(--accent); color: var(--accent); }
-    .btn.active { background: var(--accent); color: black; border-color: var(--accent); font-weight: bold; }
+    .btn:hover { border-color: #E9C46A; color: #E9C46A; }
+    .btn.active { background: #E9C46A; color: black; font-weight: bold; }
 
-    /* --- CAMBIOS PENDIENTES (BOTTOM PANEL) --- */
-    #changes-panel {
-      position: absolute; bottom: 20px; right: 20px; width: 300px;
-      background: #222; border: 1px solid var(--accent); border-radius: 8px;
-      padding: 15px; z-index: 30; display: none; box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    }
-    #changes-text {
-      width: 100%; height: 80px; background: #000; color: #0f0; 
-      font-family: monospace; font-size: 10px; border: none; margin-top: 10px;
-    }
-
-    /* --- POPUP DE CREACIÓN --- */
-    #edit-popup {
+    /* POPUP DE EDICIÓN */
+    #editor-popup {
       display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: #1e1e1e; padding: 20px; border: 1px solid #555; border-radius: 8px; z-index: 100;
-      width: 250px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+      background: #1a1a1a; border: 2px solid #E9C46A; padding: 20px; width: 280px;
+      z-index: 200; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
     }
-    #edit-popup select, #edit-popup input {
-      width: 100%; margin-bottom: 10px; padding: 8px; background: #333; border: 1px solid #555; color: white;
+    label { display: block; color: #888; font-size: 11px; margin-bottom: 5px; margin-top: 10px;}
+    select, input { width: 100%; background: #333; border: 1px solid #555; color: white; padding: 8px; border-radius: 4px; }
+    
+    /* NOTIFICACIONES */
+    #toast {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #4CAF50; color: white; padding: 10px 20px; border-radius: 20px;
+      font-size: 12px; display: none; z-index: 300; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
     }
-
+    
     /* LOADING */
-    .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--accent); font-weight: bold; }
+    #loading-screen {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: #121212; z-index: 50; display: flex; justify-content: center; align-items: center;
+        flex-direction: column; color: #E9C46A; font-weight: bold; letter-spacing: 2px;
+    }
   </style>
 </head>
 <body>
 
+<div id="loading-screen">
+    <div>CARGANDO ECOSISTEMA...</div>
+    <div style="font-size:10px; color:#666; margin-top:10px">Conectando a Google Sheets</div>
+</div>
+
 <div class="sidebar" id="sidebar">
-  <h2><i class="fa-solid fa-layer-group"></i> Capas / Filtros</h2>
-  <div class="filter-group" id="filter-container">
+  <h2>Filtros / Capas</h2>
+  <div id="filters-container">
     </div>
-  
-  <div style="margin-top: 20px; border-top: 1px solid #333; padding-top: 15px;">
-    <input type="text" id="searchNode" placeholder="Buscar..." style="width:100%; padding:8px; background:#222; border:1px solid #444; color:white; border-radius:4px;">
+  <div style="margin-top:auto; border-top:1px solid #333; padding-top:20px;">
+    <input type="text" id="search" placeholder="Buscar nodo..." style="box-sizing:border-box;" onkeyup="doSearch()">
   </div>
 </div>
 
-<div class="toggle-sidebar" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></div>
-
-<div class="toolbar">
-  <button class="btn" id="btn-edit-mode" onclick="toggleEditMode()">
-    <i class="fa-solid fa-pen-to-square"></i> Modo Editor
+<div class="top-bar">
+  <button class="btn" id="btn-mode" onclick="toggleEditMode()">
+    <i class="fa-solid fa-pen-nib"></i> Modo Edición
   </button>
-  <button class="btn" onclick="network.fit({animation:true})"><i class="fa-solid fa-expand"></i></button>
+  <button class="btn" onclick="location.reload()">
+    <i class="fa-solid fa-rotate-right"></i>
+  </button>
 </div>
 
-<div id="changes-panel">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <strong style="color:var(--accent)">Nuevas Relaciones</strong>
-    <i class="fa-solid fa-xmark" style="cursor:pointer" onclick="document.getElementById('changes-panel').style.display='none'"></i>
-  </div>
-  <p style="font-size:10px; color:#aaa; margin:5px 0;">Copia esto y pégalo en tu Google Sheet:</p>
-  <textarea id="changes-text"></textarea>
-</div>
-
-<div id="edit-popup">
-  <h3 style="margin-top:0; color:var(--accent)">Nueva Conexión</h3>
-  <label style="font-size:11px; color:#aaa;">Tipo de relación:</label>
-  <select id="new-rel-type">
-    <option value="jerarquia">Jerarquía / Cargo</option>
+<div id="editor-popup">
+  <h3 style="margin:0 0 15px 0; color:#E9C46A;">Nueva Relación</h3>
+  
+  <label>Tipo de Conexión:</label>
+  <select id="rel-type">
+    <option value="jerarquia">Jerarquía (Presidente/Director)</option>
     <option value="financiamiento">Financiamiento ($)</option>
-    <option value="comercial">Comercial / Representa</option>
-    <option value="premio">Premio / Ganador</option>
+    <option value="comercial">Representación / Comercial</option>
+    <option value="premio">Premio / Beca</option>
     <option value="pareja">Pareja / Familiar</option>
   </select>
-  <label style="font-size:11px; color:#aaa;">Etiqueta (Opcional):</label>
-  <input type="text" id="new-rel-label" placeholder="Ej: Directora">
-  <div style="display:flex; gap:10px; margin-top:10px;">
-    <button class="btn" id="save-edge-btn" style="flex:1; background:var(--accent); color:black;">Guardar</button>
-    <button class="btn" onclick="closePopup()" style="flex:1;">Cancelar</button>
+
+  <label>Etiqueta (Opcional):</label>
+  <input type="text" id="rel-label" placeholder="Ej: Ganador 2024">
+
+  <div style="display:flex; gap:10px; margin-top:20px;">
+    <button class="btn" style="flex:1; background:#E9C46A; color:black; justify-content:center;" id="btn-save">GUARDAR</button>
+    <button class="btn" style="flex:1; background:transparent; justify-content:center;" onclick="closePopup()">Cancelar</button>
   </div>
 </div>
 
-<div id="loading-msg" class="loading">Cargando Datos...</div>
+<div id="toast"><i class="fa-solid fa-check"></i> Guardado en Google Sheets</div>
+
 <div id="ecosistema-vis"></div>
 
 <script type="text/javascript">
 
-  // --- CONFIG ---
-  const PROXY = "https://corsproxy.io/?";
+  // ====================================================
+  // 1. CONFIGURACIÓN
+  // ====================================================
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrlo_1Cs9WW3zJFmPy4kkJU6jRnOqc4M-7AwvcPjjGroHr9Nv48lh3mxUZtpOmOeHu/exec";
+  
   const URL_NODOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=0&single=true&output=csv";
   const URL_RELACIONES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=1078940281&single=true&output=csv";
+  const PROXY = "https://corsproxy.io/?";
 
   var nodes = new vis.DataSet([]);
   var edges = new vis.DataSet([]);
   var network = null;
-  var allNodesData = []; // Copia para filtrar
+  var allNodesData = [];
 
   const colors = {
     fondo_publico: '#81B29A', persona: '#E9C46A', fundacion: '#A2D2FF',
     corporacion: '#A2D2FF', espacio_comercial: '#E07A5F', espacio_privado: '#E07A5F',
     espacio_no_comercial: '#E76F51', estado: '#F2CC8F', premio: '#DBF4A7',
-    gremio: '#9B5DE5'
+    gremio: '#9B5DE5', otro: '#888'
   };
 
   // --- CARGA ---
-  function cargarDatos() {
-    const safeNodos = PROXY + encodeURIComponent(URL_NODOS);
-    const safeRel = PROXY + encodeURIComponent(URL_RELACIONES);
+  function init() {
+    const pN = PROXY + encodeURIComponent(URL_NODOS);
+    const pR = PROXY + encodeURIComponent(URL_RELACIONES);
 
     Promise.all([
-      fetch(safeNodos).then(r => r.text()),
-      fetch(safeRel).then(r => r.text())
-    ]).then(([csvNodos, csvRel]) => {
-
+      fetch(pN).then(r => r.text()),
+      fetch(pR).then(r => r.text())
+    ]).then(([txtNodos, txtRel]) => {
+      
       // NODOS
-      var parsedNodes = Papa.parse(csvNodos, {header: true, skipEmptyLines: true}).data;
-      var cleanNodes = parsedNodes.filter(r => r.id).map(n => {
-          let grp = n.group || 'otro';
-          let color = colors[grp] || '#ccc';
-          let shape = (grp === 'persona') ? 'circularImage' : (grp === 'gremio' ? 'diamond' : 'box');
-          let img = (grp === 'persona' && !n.image) ? `https://ui-avatars.com/api/?name=${n.label}&background=${color.replace('#','')}&color=000` : n.image;
-          
-          return {
-            id: n.id, label: n.label, group: grp, shape: shape, image: img,
-            color: { background: color, border: color },
-            value: parseInt(n.val_size) || 25
-          };
+      let parsedN = Papa.parse(txtNodos, {header:true, skipEmptyLines:true}).data;
+      let cleanN = parsedN.filter(x => x.id).map(n => {
+        let grp = n.group || 'otro';
+        let col = colors[grp] || '#888';
+        let shape = (grp === 'persona') ? 'circularImage' : (grp==='gremio'?'diamond':'box');
+        let img = (grp === 'persona' && !n.image) ? `https://ui-avatars.com/api/?name=${n.label}&background=${col.replace('#','')}&color=000` : n.image;
+        
+        return {
+          id: n.id, label: n.label, group: grp, shape: shape, image: img,
+          color: { background: col, border: col },
+          value: parseInt(n.val_size) || 25,
+          title: n.label
+        };
       });
       
-      allNodesData = cleanNodes;
-      nodes.add(cleanNodes);
-      generateFilters(cleanNodes);
-
-      // RELACIONES
-      var parsedEdges = Papa.parse(csvRel, {header: true, skipEmptyLines: true}).data;
-      var cleanEdges = parsedEdges.filter(r => r.from && r.to).map(e => processEdge(e));
-      edges.add(cleanEdges);
-
-      initVis();
-      document.getElementById('loading-msg').style.display = 'none';
-    });
-  }
-
-  function processEdge(e) {
-      let color = '#666'; let dashes = false; let arrows = 'to';
-      if (e.relation_type === 'financiamiento') { color = '#4CAF50'; dashes = [5,5]; }
-      else if (e.relation_type === 'comercial') { color = '#9C27B0'; }
-      else if (e.relation_type === 'pareja') { color = '#fff'; arrows = false; }
-      return { 
-          from: e.from, to: e.to, label: e.label, relation_type: e.relation_type,
-          color: { color: color }, dashes: dashes, arrows: arrows 
-      };
-  }
-
-  // --- VISUALIZACIÓN ---
-  function initVis() {
-    var container = document.getElementById('ecosistema-vis');
-    var data = { nodes: nodes, edges: edges };
-    var options = {
-      nodes: { borderWidth: 2, shadow: true, font: { color: '#fff', strokeWidth: 3, strokeColor: '#000' } },
-      physics: { forceAtlas2Based: { gravitationalConstant: -80, springLength: 150 }, solver: 'forceAtlas2Based' },
-      interaction: { hover: true, navigationButtons: false },
-      manipulation: {
-          enabled: false, // Se activa con el botón
-          addEdge: function(data, callback) {
-              if (data.from == data.to) { callback(null); return; }
-              showEditPopup(data, callback);
-          }
-      }
-    };
-    network = new vis.Network(container, data, options);
-    
-    // Doble clic: Agrupar
-    network.on("doubleClick", function(p) {
-        if(p.nodes.length === 1) {
-            if(network.isCluster(p.nodes[0])) network.openCluster(p.nodes[0]);
-            else network.cluster({ joinCondition: (c) => network.getConnectedNodes(c.id).includes(p.nodes[0]) && c.group === 'persona', clusterNodeProperties: {label:'Grupo', color:'#E9C46A', shape:'dot', size:40} });
-        }
-    });
-  }
-
-  // --- FILTROS (SIDEBAR) ---
-  function generateFilters(data) {
-      const groups = [...new Set(data.map(n => n.group))];
-      const container = document.getElementById('filter-container');
-      container.innerHTML = ""; // Limpiar
-
-      groups.forEach(grp => {
-          let color = colors[grp] || '#ccc';
-          let div = document.createElement('div');
-          div.className = 'filter-item';
-          div.innerHTML = `
-            <input type="checkbox" checked onchange="applyFilters()" value="${grp}">
-            <div class="dot-legend" style="background:${color}"></div>
-            ${grp.toUpperCase().replace('_', ' ')}
-          `;
-          container.appendChild(div);
-      });
-  }
-
-  function applyFilters() {
-      const checkboxes = document.querySelectorAll('.filter-item input');
-      const activeGroups = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
-      
-      // Filtramos la vista
-      const filteredNodes = allNodesData.filter(n => activeGroups.includes(n.group));
-      nodes.clear();
-      nodes.add(filteredNodes);
-  }
-
-  // --- EDICIÓN VISUAL ---
-  function toggleEditMode() {
-      let btn = document.getElementById('btn-edit-mode');
-      let mode = btn.classList.toggle('active');
-      
-      if (mode) {
-          network.addEdgeMode(); // Activa dibujar líneas
-          btn.innerHTML = '<i class="fa-solid fa-stop"></i> Terminar Edición';
-      } else {
-          network.disableEditMode();
-          btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Modo Editor';
-      }
-  }
-
-  function showEditPopup(data, callback) {
-      document.getElementById('edit-popup').style.display = 'block';
-      document.getElementById('save-edge-btn').onclick = function() {
-          saveNewEdge(data, callback);
-      };
-  }
-
-  function closePopup() {
-      document.getElementById('edit-popup').style.display = 'none';
-  }
-
-  function saveNewEdge(data, callback) {
-      let type = document.getElementById('new-rel-type').value;
-      let label = document.getElementById('new-rel-label').value;
-      
-      // Generar la línea CSV
-      let csvLine = `${data.from},${data.to},${label},${type}`;
-      
-      // Mostrar en panel de cambios
-      let panel = document.getElementById('changes-panel');
-      let textArea = document.getElementById('changes-text');
-      panel.style.display = 'block';
-      textArea.value += csvLine + "\n";
-
-      // Dibujar visualmente
-      data.label = label;
-      data.relation_type = type;
-      // Aplicar estilo visual inmediato
-      let styled = processEdge(data);
-      Object.assign(data, styled); // Mezclar estilos
-      
-      closePopup();
-      callback(data); // Confirma a vis.js que dibuje
-      toggleEditMode(); // Salir de modo edición
-  }
-
-  function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('closed');
-  }
-
-  // Buscador
-  document.getElementById('searchNode').addEventListener('keyup', function(e) {
-      let term = e.target.value.toLowerCase();
-      if (!term) return;
-      let found = nodes.get().find(n => n.label.toLowerCase().includes(term));
-      if (found) {
-          network.focus(found.id, { scale: 1.5, animation: true });
-          network.selectNodes([found.id]);
-      }
-  });
-
-  cargarDatos();
-
-</script>
-</body>
-</html>
+      allNodesData = cleanN;
