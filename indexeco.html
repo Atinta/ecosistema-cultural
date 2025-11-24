@@ -61,6 +61,296 @@
       font-size: 12px; pointer-events: none; z-index: 1000; transform: translateY(-15px);
     }
 
+    /* LOADING & ERROR */
+    .loading { 
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+      color: var(--accent); letter-spacing: 2px; font-size: 14px; text-transform: uppercase;
+      text-align: center;
+    }
+    .error-msg {
+        color: #ff5555; font-size: 12px; margin-top: 10px; max-width: 300px; line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+<div id="custom-tooltip"></div>
+
+<div class="ui-overlay">
+  <div class="card">
+    <h1>Ecosistema Cultural</h1>
+    <p>Doble clic en un nodo para agrupar.</p>
+    
+    <div class="legend-grid">
+      <div class="legend-item"><div class="dot" style="background:#F2CC8F"></div>Estado</div>
+      <div class="legend-item"><div class="dot" style="background:#81B29A"></div>Fondo Público</div>
+      <div class="legend-item"><div class="dot" style="background:#A2D2FF"></div>Fundación</div>
+      <div class="legend-item"><div class="dot" style="background:#E07A5F"></div>Espacio/Galería</div>
+      <div class="legend-item"><div class="dot" style="background:#E9C46A"></div>Persona</div>
+      <div class="legend-item"><div class="dot" style="background:#9B5DE5; border-radius:0; transform:rotate(45deg)"></div>Gremio</div>
+    </div>
+    
+    <div style="margin-top:10px; border-top:1px solid #333; padding-top:10px;">
+        <div class="legend-item"><div class="line" style="background:#4CAF50; border-top: 2px dashed #4CAF50;"></div>Financiamiento</div>
+        <div class="legend-item"><div class="line" style="background:#9C27B0"></div>Comercial</div>
+        <div class="legend-item"><div class="line" style="background:#00BBF9"></div>Afiliación</div>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="searchNode" placeholder="Buscar..." onkeyup="searchNode()">
+    </div>
+  </div>
+</div>
+
+<div id="loading-container" class="loading">
+    <div>Cargando Red...</div>
+    <div id="error-details" class="error-msg"></div>
+</div>
+
+<div id="ecosistema-vis"></div>
+
+<script type="text/javascript">
+
+  // --- CONFIGURACIÓN DE PROXY (CRUCIAL) ---
+  // Usamos este proxy para evitar el bloqueo CORS de Google Sheets
+  const PROXY = "https://corsproxy.io/?";
+
+  const URL_NODOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=0&single=true&output=csv";
+  const URL_RELACIONES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=1078940281&single=true&output=csv";
+
+  var nodes = new vis.DataSet([]);
+  var edges = new vis.DataSet([]);
+  var network = null;
+
+  const colors = {
+    fondo_publico: '#81B29A', persona: '#E9C46A', fundacion: '#A2D2FF',
+    corporacion: '#A2D2FF', espacio_comercial: '#E07A5F', espacio_privado: '#E07A5F',
+    espacio_no_comercial: '#E76F51', estado: '#F2CC8F', premio: '#DBF4A7',
+    coleccion: '#B1A7D6', evento: '#FFB703', plataforma: '#F4A261',
+    gremio: '#9B5DE5'
+  };
+
+  function getAvatar(label, color) {
+    const clean = label ? label.replace(/\s+/g, '+') : 'X';
+    const hex = color ? color.replace('#', '') : 'ccc';
+    return `https://ui-avatars.com/api/?name=${clean}&background=${hex}&color=000&size=128&bold=true&font-size=0.4`;
+  }
+
+  function cargarDatos() {
+    // Envolvemos las URLs con el Proxy
+    const safeUrlNodos = PROXY + encodeURIComponent(URL_NODOS);
+    const safeUrlRel = PROXY + encodeURIComponent(URL_RELACIONES);
+
+    Promise.all([
+      fetch(safeUrlNodos).then(r => {
+          if (!r.ok) throw new Error("Error conectando a Nodos (Google Block)");
+          return r.text();
+      }),
+      fetch(safeUrlRel).then(r => {
+          if (!r.ok) throw new Error("Error conectando a Relaciones (Google Block)");
+          return r.text();
+      })
+    ]).then(([csvNodos, csvRel]) => {
+
+      // --- NODOS ---
+      var dataNodos = Papa.parse(csvNodos, {header: true, skipEmptyLines: true}).data;
+      var cleanNodes = dataNodos.filter(r => r.id).map(n => {
+          let groupColor = colors[n.group] || '#ccc';
+          let shape = 'dot';
+          let image = undefined;
+          let font = { color: '#fff', background: 'rgba(0,0,0,0.7)', strokeWidth: 0, size: 14 };
+
+          if (n.group === 'persona') {
+            shape = 'circularImage';
+            image = (n.image && n.image.startsWith('http')) ? n.image : getAvatar(n.label, groupColor);
+          } else if (n.group === 'gremio') {
+            shape = 'diamond';
+            font.size = 16;
+          } else if (['fundacion','corporacion','estado','espacio_comercial'].includes(n.group)) {
+            shape = 'box';
+          }
+
+          return {
+            id: n.id, label: n.label, group: n.group, shape: shape, image: image,
+            value: n.val_size ? parseInt(n.val_size) : 25,
+            color: { background: groupColor, border: groupColor, highlight: { border: '#FFF', background: groupColor } },
+            font: font,
+            title: n.label
+          };
+      });
+      nodes.clear(); nodes.add(cleanNodes);
+
+      // --- RELACIONES ---
+      var dataRel = Papa.parse(csvRel, {header: true, skipEmptyLines: true}).data;
+      var cleanEdges = dataRel.filter(r => r.from && r.to).map(e => {
+          let color = 'rgba(255,255,255,0.15)'; let dashes = false; let arrows = 'to';
+          
+          if (e.relation_type === 'financiamiento') { color = '#4CAF50'; dashes = [5,5]; width=2; }
+          else if (e.relation_type === 'comercial') { color = '#9C27B0'; }
+          else if (e.relation_type === 'afiliacion') { color = '#00BBF9'; }
+          else if (e.relation_type === 'pareja') { color = '#fff'; arrows = false; }
+
+          return {
+            from: e.from, to: e.to, label: e.label,
+            color: { color: color, highlight: '#fff' },
+            dashes: dashes, arrows: arrows,
+            font: { align: 'middle', size: 10, color: '#aaa', background: 'rgba(0,0,0,0.8)', strokeWidth: 0 }
+          };
+      });
+      edges.clear(); edges.add(cleanEdges);
+
+      if(!network) dibujarMapa();
+      document.getElementById('loading-container').style.display = 'none';
+
+    }).catch(err => {
+      console.error(err);
+      // MOSTRAR ERROR EN PANTALLA
+      document.getElementById('loading-container').innerHTML = `
+        <div style="font-size:16px; margin-bottom:10px">⚠️ ERROR DE CONEXIÓN</div>
+        <div style="font-size:11px; color:#ccc; border:1px solid #444; padding:10px; border-radius:5px; background:rgba(0,0,0,0.5)">
+            ${err.message}<br><br>
+            Probablemente el navegador bloqueó el acceso a Google Sheets.<br>
+            Intenta recargar o probar en otro navegador.
+        </div>
+      `;
+    });
+  }
+
+  function dibujarMapa() {
+    var container = document.getElementById('ecosistema-vis');
+    var data = { nodes: nodes, edges: edges };
+    
+    var options = {
+      nodes: { borderWidth: 2, shadow: true },
+      edges: { smooth: { type: 'continuous' } },
+      physics: {
+        forceAtlas2Based: { gravitationalConstant: -120, springLength: 150, springConstant: 0.05, damping: 0.9 },
+        solver: 'forceAtlas2Based', stabilization: { iterations: 150 }
+      },
+      interaction: { hover: true, navigationButtons: true, keyboard: true },
+      layout: { improvedLayout: false }
+    };
+
+    network = new vis.Network(container, data, options);
+
+    // DOBLE CLIC = CLUSTER
+    network.on("doubleClick", function(params) {
+        if (params.nodes.length == 1) {
+            if (network.isCluster(params.nodes[0]) == true) {
+                network.openCluster(params.nodes[0]);
+            } else {
+                clusterByHub(params.nodes[0]);
+            }
+        }
+    });
+
+    // TOOLTIP
+    network.on("hoverNode", function (params) {
+        var node = nodes.get(params.node);
+        if(!node) return;
+        var tooltip = document.getElementById('custom-tooltip');
+        tooltip.innerHTML = `<strong>${node.label}</strong><br><span style="color:#ccc">${node.group}</span>`;
+        tooltip.style.visibility = 'visible';
+    });
+    network.on("blurNode", function () { document.getElementById('custom-tooltip').style.visibility = 'hidden'; });
+    document.getElementById('ecosistema-vis').addEventListener('mousemove', function(e) {
+        var tooltip = document.getElementById('custom-tooltip');
+        tooltip.style.left = e.pageX + 10 + 'px';
+        tooltip.style.top = e.pageY + 10 + 'px';
+    });
+  }
+
+  function clusterByHub(hubId) {
+      var clusterOptionsByData = {
+          joinCondition: function(childOptions) {
+              var connected = network.getConnectedNodes(childOptions.id);
+              return connected.includes(hubId) && childOptions.group === 'persona';
+          },
+          clusterNodeProperties: {
+              id: 'cluster:' + hubId, borderWidth: 3, shape: 'dot', color: '#E9C46A',
+              label: 'Grupo (' + network.getConnectedNodes(hubId).length + ')',
+              font: { size: 16, color: '#fff', background: 'rgba(0,0,0,0.8)' }
+          }
+      };
+      network.cluster(clusterOptionsByData);
+  }
+
+  window.searchNode = function() {
+    var term = document.getElementById('searchNode').value.toLowerCase();
+    if(term === "") return;
+    var found = nodes.get().find(n => n.label && n.label.toLowerCase().includes(term));
+    if(found) {
+      network.focus(found.id, { scale: 1.2, animation: true });
+      network.selectNodes([found.id]);
+    }
+  }
+
+  cargarDatos();
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ecosistema Cultural de Chile</title>
+  
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <style>
+    /* --- ESTILO GENERAL --- */
+    :root {
+      --bg-dark: #0a0a0a;
+      --glass-bg: rgba(20, 20, 20, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --accent: #E9C46A;
+    }
+
+    body { margin: 0; background-color: var(--bg-dark); font-family: 'Outfit', sans-serif; overflow: hidden; }
+    
+    #ecosistema-vis { 
+      width: 100vw; height: 100vh; 
+      background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000000 100%);
+    }
+
+    /* UI PANEL */
+    .ui-overlay { 
+      position: absolute; top: 20px; left: 20px; z-index: 10; 
+      display: flex; flex-direction: column; gap: 15px; pointer-events: none;
+    }
+
+    .card {
+      background: var(--glass-bg); padding: 20px; border-radius: 16px; 
+      border: 1px solid var(--glass-border); backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6); max-width: 260px; pointer-events: auto;
+    }
+
+    h1 { color: #fff; margin: 0 0 5px 0; text-transform: uppercase; font-size: 15px; letter-spacing: 1px; }
+    p { color: #888; font-size: 11px; margin: 0 0 15px 0; }
+    
+    .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .legend-item { display: flex; align-items: center; color: #bbb; font-size: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+    .line { width: 12px; height: 2px; margin-right: 8px; }
+
+    /* BUSCADOR */
+    .search-box { margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; }
+    input {
+      background: rgba(0,0,0,0.5); border: 1px solid #444; color: white; 
+      padding: 8px 12px; width: 100%; border-radius: 6px; font-family: 'Outfit';
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+
+    /* TOOLTIP */
+    #custom-tooltip {
+      position: absolute; visibility: hidden; background: rgba(0,0,0,0.9);
+      border: 1px solid #444; padding: 10px; border-radius: 6px; color: #fff;
+      font-size: 12px; pointer-events: none; z-index: 1000; transform: translateY(-15px);
+    }
+
     /* Loading */
     .loading { 
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
