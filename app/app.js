@@ -1,5 +1,5 @@
 /* --- CONFIGURACIÓN Y VARIABLES --- */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrlo_1Cs9WW3zJFmPy4kkJU6jRnOqc4M-7AwvcPjjGroHr9Nv48lh3mxUZtpOmOeHu/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzOoFrdHylM0poJStkw9VZ3p8_EhiKxbYqhGwo9e6ahyb9OE2VscGu-C5F2pFcQ2zdI/exec";
 const URL_NODOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=0&single=true&output=csv";
 const URL_RELACIONES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=1078940281&single=true&output=csv";
 const PROXY = "https://corsproxy.io/?";
