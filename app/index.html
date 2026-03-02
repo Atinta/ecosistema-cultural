@@ -24,6 +24,7 @@
   <div id="filters-container"></div>
   <div class="sidebar-footer">
     <input type="text" id="search" placeholder="Buscar nodo..." onkeyup="doSearch()">
+    <div id="search-results-container"></div>
   </div>
 </div>
 
@@ -84,6 +85,8 @@
     </select>
     <label>Bio (opcional):</label>
     <textarea id="node-bio" placeholder="Breve biografía o notas..."></textarea>
+    <label>Link (URL):</label>
+    <input type="text" id="node-url" placeholder="https://...">
   </div>
   <div style="display:flex; gap:10px; margin-top:20px;">
     <button class="btn" style="flex:1; background:#E9C46A; color:black; justify-content:center;" id="btn-save">GUARDAR</button>

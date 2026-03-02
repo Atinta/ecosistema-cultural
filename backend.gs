@@ -1,16 +1,18 @@
 /*
   INSTRUCCIONES:
-  1. Abre tu Google Sheet.
+  1. Abre tu Google Sheet (la hoja original, no la versión publicada).
   2. Ve a 'Extensiones' -> 'Apps Script'.
   3. Pega este código reemplazando todo lo anterior.
-  4. Cambia 'SPREADSHEET_ID' por el ID de tu hoja (el código en la URL entre /d/ y /edit).
-  5. Haz clic en 'Implementar' -> 'Nueva implementación'.
-  6. Selecciona 'Aplicación web'.
-  7. En 'Quién tiene acceso', elige 'Cualquiera'.
-  8. Copia la URL generada y pégala en GOOGLE_SCRIPT_URL en app.js.
+  4. Identifica el ID de tu hoja: en la URL de tu navegador, es la cadena larga entre '/d/' y '/edit'.
+     Ejemplo: https://docs.google.com/spreadsheets/d/ABC123XYZ/edit#gid=0 -> El ID es ABC123XYZ
+  5. Cambia 'SPREADSHEET_ID' (abajo) por ese ID.
+  6. Haz clic en 'Implementar' -> 'Nueva implementación'.
+  7. Selecciona 'Aplicación web'.
+  8. En 'Quién tiene acceso', elige 'Cualquiera' (esto es vital para que la web app funcione).
+  9. Copia la URL generada y pégala en GOOGLE_SCRIPT_URL en el archivo app.js.
 */
 
-const SPREADSHEET_ID = '1-S5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H'; // Actualiza con tu ID real
+const SPREADSHEET_ID = '1-S5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H'; // REEMPLAZA ESTO CON TU ID REAL
 const PASS = "1234"; // Password simple para acciones destructivas
 
 function doPost(e) {
@@ -53,6 +55,22 @@ function doPost(e) {
       const nextId = new Date().getTime().toString(); // ID único simple
       sheet.appendRow([nextId, data.label, data.group, data.image || "", data.val_size || 25, data.bio || "", data.url || ""]);
       return ContentService.createTextOutput(nextId).setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    if (data.action === "updateNode") {
+      const sheet = ss.getSheetByName("Nodos");
+      const nodeData = sheet.getDataRange().getValues();
+      for (let i = 1; i < nodeData.length; i++) {
+        if (nodeData[i][0].toString() === data.id.toString()) {
+          // Columnas: ID(0), Label(1), Group(2), Image(3), Size(4), Bio(5), Url(6)
+          sheet.getRange(i + 1, 2).setValue(data.label);
+          sheet.getRange(i + 1, 3).setValue(data.group);
+          sheet.getRange(i + 1, 6).setValue(data.bio);
+          sheet.getRange(i + 1, 7).setValue(data.url);
+          return ContentService.createTextOutput("OK").setMimeType(ContentService.MimeType.TEXT);
+        }
+      }
+      throw new Error("Nodo no encontrado");
     }
 
   } catch (err) {

@@ -1,7 +1,12 @@
 /* --- CONFIGURACIÓN Y VARIABLES --- */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzOoFrdHylM0poJStkw9VZ3p8_EhiKxbYqhGwo9e6ahyb9OE2VscGu-C5F2pFcQ2zdI/exec";
-const URL_NODOS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=0&single=true&output=csv";
-const URL_RELACIONES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS5NA31GzQIJ631B8M_5gg9yu-SDwTRGu91jPbB2coNLGhBVju33RTui2pYo5y2mAEt8M8GnHcISj4H/pub?gid=1078940281&single=true&output=csv";
+// 1. Despliega backend.gs como "Web App" en Google Apps Script
+// 2. Copia la URL generada y pégala aquí:
+const GOOGLE_SCRIPT_URL = "URL_DE_TU_SCRIPT_AQUI";
+
+// 3. Publica tu Google Sheet como CSV (Archivo -> Compartir -> Publicar en la Web -> CSV)
+// 4. Pega las URLs de las pestañas de Nodos y Relaciones aquí:
+const URL_NODOS = "URL_DE_NODOS_CSV_AQUI";
+const URL_RELACIONES = "URL_DE_RELACIONES_CSV_AQUI";
 const PROXY = "https://corsproxy.io/?";
 
 const colors = {
@@ -166,7 +171,10 @@ function showDetails(nodeId) {
   if(editMode) {
     controls.style.display = 'block';
     controls.innerHTML = `
-        <button class="btn danger" style="width:100%" onclick="deleteNodePrompt('${nodeId}')">
+        <button class="btn" style="width:100%; margin-bottom: 10px; background: #E9C46A; color: black;" onclick="openEditNodePopup('${nodeId}')">
+            <i class="fa-solid fa-pen-to-square"></i> Editar Datos
+        </button>
+        <button class="btn danger" style="width:100%" onclick="deleteNodePrompt(event, '${nodeId}')">
             <i class="fa-solid fa-trash"></i> Eliminar Nodo
         </button>
         <div style="margin-top: 10px; font-size: 10px; color: #666; text-align: center;">
@@ -260,7 +268,31 @@ function openAddNodePopup() {
     document.getElementById('relation-fields').style.display = 'none';
     document.getElementById('node-fields').style.display = 'block';
     document.getElementById('editor-popup').style.display = 'block';
+
+    // Reset fields
+    document.getElementById('node-label').value = "";
+    document.getElementById('node-bio').value = "";
+    document.getElementById('node-url').value = "";
+
     document.getElementById('btn-save').onclick = saveNode;
+}
+
+function openEditNodePopup(nodeId) {
+    const node = nodes.get(nodeId);
+    document.getElementById('popup-title').innerText = "Editar Nodo";
+    document.getElementById('relation-fields').style.display = 'none';
+    document.getElementById('node-fields').style.display = 'block';
+    document.getElementById('editor-popup').style.display = 'block';
+
+    // Fill fields
+    document.getElementById('node-label').value = node.label;
+    document.getElementById('node-group').value = node.group;
+    document.getElementById('node-bio').value = node.bio || "";
+    document.getElementById('node-url').value = node.url || "";
+
+    document.getElementById('btn-save').onclick = function() {
+        updateNode(nodeId);
+    };
 }
 
 function closePopup() {
@@ -272,6 +304,7 @@ function saveNode() {
     let label = document.getElementById('node-label').value;
     let group = document.getElementById('node-group').value;
     let bio = document.getElementById('node-bio').value;
+    let url = document.getElementById('node-url').value;
     let btn = document.getElementById('btn-save');
 
     if(!label) return alert("El nombre es obligatorio");
@@ -287,11 +320,59 @@ function saveNode() {
             action: "addNode",
             label: label,
             group: group,
-            bio: bio
+            bio: bio,
+            url: url
         })
     }).then(() => {
-        // Como es no-cors, no recibimos el ID, pero podemos recargar o estimar
         showToast("Nodo creado. Recarga para ver cambios.");
+        closePopup();
+        btn.innerHTML = "GUARDAR";
+        btn.disabled = false;
+    }).catch(err => {
+        alert("Error: " + err);
+        btn.innerHTML = "GUARDAR";
+        btn.disabled = false;
+    });
+}
+
+function updateNode(nodeId) {
+    let label = document.getElementById('node-label').value;
+    let group = document.getElementById('node-group').value;
+    let bio = document.getElementById('node-bio').value;
+    let url = document.getElementById('node-url').value;
+    let btn = document.getElementById('btn-save');
+
+    if(!label) return alert("El nombre es obligatorio");
+
+    btn.innerHTML = "Actualizando...";
+    btn.disabled = true;
+
+    fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: "updateNode",
+            id: nodeId,
+            label: label,
+            group: group,
+            bio: bio,
+            url: url
+        })
+    }).then(() => {
+        showToast("Nodo actualizado. Recarga para ver cambios.");
+
+        // Actualizar localmente para feedback inmediato
+        let updatedNode = formatNode({
+            id: nodeId,
+            label: label,
+            group: group,
+            bio: bio,
+            url: url
+        });
+        nodes.update(updatedNode);
+        showDetails(nodeId); // Refrescar panel lateral
+
         closePopup();
         btn.innerHTML = "GUARDAR";
         btn.disabled = false;
@@ -350,17 +431,17 @@ function buildFilters(data) {
     let div = document.createElement('div');
     div.className = 'filter-row';
     div.innerHTML = `
-      <div class="checkbox checked" onclick="toggleFilter(this, '${grp}')"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
+      <div class="checkbox checked" data-group="${grp}" onclick="toggleFilter(this)"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
       <span style="color:${color}">●</span>&nbsp; ${grp.toUpperCase().replace('_',' ')}
     `;
     container.appendChild(div);
   });
 }
 
-function toggleFilter(el, group) {
+function toggleFilter(el) {
   el.classList.toggle('checked');
   let activeGroups = Array.from(document.querySelectorAll('.checkbox.checked'))
-                          .map(c => c.getAttribute('onclick').match(/'([^']+)'/)[1]);
+                          .map(c => c.getAttribute('data-group'));
 
   let finalNodes = allNodesRaw.filter(n => activeGroups.includes(n.group)).map(n => formatNode(n));
   nodes.clear();
@@ -368,13 +449,36 @@ function toggleFilter(el, group) {
 }
 
 function doSearch() {
-  let term = document.getElementById('search').value.toLowerCase();
-  if(!term) return;
-  let found = nodes.get().find(n => n.label.toLowerCase().includes(term));
-  if(found) {
-    network.focus(found.id, {scale:1.2, animation:true});
-    network.selectNodes([found.id]);
-    showDetails(found.id);
+  const term = document.getElementById('search').value.toLowerCase();
+  const container = document.getElementById('search-results-container');
+  container.innerHTML = "";
+
+  if (!term || term.length < 2) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const results = nodes.get({
+    filter: (n) => n.label.toLowerCase().includes(term)
+  }).slice(0, 10); // Limitar a 10 resultados para no saturar
+
+  if (results.length > 0) {
+    container.style.display = 'block';
+    results.forEach(n => {
+      const div = document.createElement('div');
+      div.className = 'search-result-item';
+      div.innerHTML = `<i class="fa-solid fa-location-dot" style="color:${n.color.background}"></i> ${n.label}`;
+      div.onclick = () => {
+        network.focus(n.id, { scale: 1.2, animation: true });
+        network.selectNodes([n.id]);
+        showDetails(n.id);
+        container.style.display = 'none';
+        document.getElementById('search').value = "";
+      };
+      container.appendChild(div);
+    });
+  } else {
+    container.style.display = 'none';
   }
 }
 
@@ -385,7 +489,7 @@ function showToast(message = "¡Guardado exitosamente!") {
   setTimeout(() => toast.style.display='none', 4000);
 }
 
-function deleteNodePrompt(nodeId) {
+function deleteNodePrompt(event, nodeId) {
   const pass = prompt("Ingresa la contraseña para ELIMINAR:");
   if (!pass) return;
 
