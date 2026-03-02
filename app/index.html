@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ecosistema Cultural</title>
+
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loading-screen">
+    <div>CONECTANDO...</div>
+    <div style="font-size:10px; color:#666; margin-top:10px">Sincronizando con Google Sheets</div>
+</div>
+
+<!-- Left Sidebar: Filters and Search -->
+<div class="sidebar left-sidebar" id="sidebar-left">
+  <h2>Filtros</h2>
+  <div id="filters-container"></div>
+  <div class="sidebar-footer">
+    <input type="text" id="search" placeholder="Buscar nodo..." onkeyup="doSearch()">
+    <div id="search-results-container"></div>
+  </div>
+</div>
+
+<!-- Right Sidebar: Details and Actions -->
+<div class="sidebar right-sidebar" id="sidebar-right">
+  <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <h2 id="details-title" style="margin:0;">Detalles</h2>
+    <button class="btn" style="padding: 5px 10px;" onclick="closeDetails()"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div id="details-content">
+    <p style="color: #666; font-size: 12px;">Selecciona un nodo para ver sus detalles.</p>
+  </div>
+  <div id="edit-controls" style="display:none; margin-top: 20px;">
+     <!-- Content will be injected by JS -->
+  </div>
+</div>
+
+<div class="top-bar">
+  <button class="btn" id="btn-add-node" onclick="openAddNodePopup()" style="display:none;">
+    <i class="fa-solid fa-plus"></i> Nuevo Nodo
+  </button>
+  <button class="btn" id="btn-mode" onclick="toggleEditMode()">
+    <i class="fa-solid fa-pen-nib"></i> Modo Edición
+  </button>
+  <button class="btn" onclick="location.reload()">
+    <i class="fa-solid fa-rotate-right"></i>
+  </button>
+</div>
+
+<div id="editor-popup">
+  <h3 id="popup-title" style="margin:0 0 15px 0; color:#E9C46A;">Nueva Relación</h3>
+  <div id="relation-fields">
+    <label>Tipo:</label>
+    <select id="rel-type">
+      <option value="jerarquia">Jerarquía (Presidente/Director)</option>
+      <option value="financiamiento">Financiamiento ($)</option>
+      <option value="comercial">Representación / Comercial</option>
+      <option value="premio">Premio / Beca</option>
+      <option value="pareja">Pareja / Familiar</option>
+    </select>
+    <label>Etiqueta:</label>
+    <input type="text" id="rel-label" placeholder="Ej: Ganador 2024">
+  </div>
+  <div id="node-fields" style="display:none;">
+    <label>Nombre:</label>
+    <input type="text" id="node-label" placeholder="Ej: Fundación ABC">
+    <label>Categoría:</label>
+    <select id="node-group">
+      <option value="persona">Persona</option>
+      <option value="fundacion">Fundación</option>
+      <option value="corporacion">Corporación</option>
+      <option value="fondo_publico">Fondo Público</option>
+      <option value="espacio_comercial">Espacio Comercial</option>
+      <option value="espacio_no_comercial">Espacio No Comercial</option>
+      <option value="premio">Premio</option>
+      <option value="gremio">Gremio</option>
+      <option value="otro">Otro</option>
+    </select>
+    <label>Bio (opcional):</label>
+    <textarea id="node-bio" placeholder="Breve biografía o notas..."></textarea>
+    <label>Link (URL):</label>
+    <input type="text" id="node-url" placeholder="https://...">
+  </div>
+  <div style="display:flex; gap:10px; margin-top:20px;">
+    <button class="btn" style="flex:1; background:#E9C46A; color:black; justify-content:center;" id="btn-save">GUARDAR</button>
+    <button class="btn" style="flex:1; background:transparent; justify-content:center;" onclick="closePopup()">Cancelar</button>
+  </div>
+</div>
+
+<div id="toast"><i class="fa-solid fa-check"></i> ¡Guardado exitosamente!</div>
+
+<div id="ecosistema-vis"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

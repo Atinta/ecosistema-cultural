@@ -1,0 +1,10 @@
+127.0.0.1 - - [02/Mar/2026 17:03:31] "HEAD /app/index.html HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:03:43] "GET /app/index.html HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:03:43] "GET /app/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:03:43] "GET /app/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:04:28] "GET /app/index.html HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:04:28] "GET /app/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:04:28] "GET /app/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:04:46] "GET /app/index.html HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:04:46] "GET /app/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [02/Mar/2026 17:04:46] "GET /app/app.js HTTP/1.1" 200 -
